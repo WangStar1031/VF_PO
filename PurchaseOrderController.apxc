@@ -1,0 +1,212 @@
+/*
+Test Class: 
+*/
+public class PurchaseOrderController 
+{
+    public static void generateSerialNumber(List<Purchase_Order__c> triggerNewList)
+    {
+    	List<Purchase_Order__c> poList = new List<Purchase_Order__c>();
+    	poList = [Select Id, Serial_Number__c, Serial_Number_Prefix__c, Last_Record__c From Purchase_Order__c Where Last_Record__c = true limit 1];
+    	Integer serialNumber = -1;
+    	String prefix = 'A';
+    	if(poList.size()>0)
+    	{
+    		serialNumber = Integer.valueof(poList[0].Serial_Number__c);
+    		prefix = poList[0].Serial_Number_Prefix__c;
+    		poList[0].Last_Record__c = false;
+    		Utilityclass.PurchaseOrderTriggerSwitch = false;
+    		update poList;
+    		Utilityclass.PurchaseOrderTriggerSwitch = true;
+    	}
+    	Integer listSize = triggerNewList.size();
+    	for(Purchase_Order__c po: triggerNewList)
+    	{
+    		listSize--;
+    		serialNumber++;
+    		if(serialNumber == 1000000)
+    		{
+    			serialNumber = 0;
+    			prefix = getNextAlphabet(prefix);
+    		}
+    		po.Serial_Number__c = serialNumber;
+    		po.Serial_Number_Prefix__c = prefix;
+    		if(listSize == 0)
+    		{
+    			po.Last_Record__c = true;
+    		}
+    		po.Name = po.Serial_Number_Prefix__c + convertToSixDigitsString(Integer.valueof(po.Serial_Number__c));
+    	}
+    }
+    public static Integer String2Integer(String input){
+        String key = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        Integer retVal = 0;
+        for( Integer i = 0; i <= input.length(); i--){
+            Integer index = key.indexOfChar(input.charAt(i)) + 1;
+            retVal = retVal * 26 + index;
+        }
+        return retVal;
+    }
+    public static String Integer2String(Integer input){
+        String key = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        String retVal = '';
+        Boolean isFirst = true;
+        while(input != 0){
+            Integer modVal = math.mod(input, 26);
+            if( isFirst == true){
+                isFirst = false;
+                modVal = modVal - 1;
+            }
+            retVal = retVal + key.substring(modVal, modVal + 1);
+            input = input / 26;
+        }
+        return retVal;
+    }
+	public static String getNextAlphabet(String oldChar) 
+	{
+        return Integer2String( String2Integer(oldChar) + 1);
+	    // String key = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+	    // Integer index = key.indexOfChar(oldChar.charAt(0));
+	    // return index == -1? null: key.substring(index+1, index+2);
+	}
+
+	public static String convertToSixDigitsString(Integer input)
+	{
+		String inputString = String.valueof(input);
+		for(Integer i = inputString.length(); i < 6; i++)
+		{
+			inputString = '0' + inputString;
+		}
+		return inputString;
+	}
+    /*
+    public static void updateExternalId(List<Purchase_Order__c> triggerNewList)
+    {
+    	List<String> supplierIdlist = new List<String>();
+    	for(Purchase_Order__c po: triggerNewList)
+    	{
+    		supplierIdlist.add(po.Supplier__c);
+    	}
+    	Map<Id, Suppliers__c> supplierMap = new Map<Id, Suppliers__c>([Select Id, External_Id__c From Suppliers__c Where Id in: supplierIdlist]);
+    	for(Purchase_Order__c po: triggerNewList)
+    	{
+    		po.External_Id__c = supplierMap.get(po.Supplier__c).External_Id__c + '-' + po.Name;
+    	}
+    }
+    */
+
+    public static void updateBillDate(Map<Id, Purchase_Order__c> triggerNewMap, Map<Id, Purchase_Order__c>  triggerOldMap)
+    {
+        List<String> poIdList = new List<String>();
+        for(Purchase_Order__c po: triggerNewMap.values())
+        {
+            if(po.Invoiced_Date__c != triggerOldMap.get(po.Id).Invoiced_Date__c)
+            {
+                poIdList.add(po.Id);
+            }
+        }
+        List<Bill__c> billList = new List<Bill__c>();
+        billList = [Select Id, Bill_Date__c, Purchase_Order__c From Bill__c where Purchase_Order__c in: poIdList];
+        for(Bill__c bl: billList)
+        {
+            bl.Bill_Date__c = triggerNewMap.get(bl.Purchase_Order__c).Invoiced_Date__c;
+        }
+        if(billList.size()>0) Update billList;
+    }
+    @AuraEnabled
+    public static string OrderPurchaseOrder(Id recordId){
+        Purchase_Order__c purchaseOrder = new Purchase_Order__c();
+        purchaseOrder = [Select Id, Name, Status__c, (Select Id, Purchase_Price__c, Supplier_Product_SKU__c From Purchase_Order_Lines__r) From Purchase_Order__c Where Id =: recordId limit 1];
+        string RetrunMessage = '';
+
+        if(purchaseOrder.Status__c == 'Draft')
+        {
+            purchaseOrder.Status__c = 'Ordered';
+            purchaseOrder.Ordered_By__c = UserInfo.getUserId();
+            purchaseOrder.Order_Time__c = System.now();
+            Update purchaseOrder;
+            List<String> spIdList = new List<String>();
+            for(Purchase_Order_Line__c pol: purchaseOrder.Purchase_Order_Lines__r)
+            {
+                spIdList.add(pol.Supplier_Product_SKU__c);
+            }
+            List<Supplier_Products__c> spList = new List<Supplier_Products__c>();
+            spList = [Select Id, Last_Ordered_Cost__c, Last_Ordered_Date__c From Supplier_Products__c];
+            for(Purchase_Order_Line__c pol: purchaseOrder.Purchase_Order_Lines__r)
+            {
+                for(Supplier_Products__c sp: spList)
+                {
+                    if(pol.Supplier_Product_SKU__c == sp.Id)
+                    {
+                        sp.Last_Ordered_Date__c = System.today();
+                        sp.Last_Ordered_Cost__c = pol.Purchase_Price__c;
+                    }
+                }
+            }
+            if(spList.size()>0)
+            {
+                Update spList;
+            }
+            RetrunMessage = 'Updated!';
+        }
+        else 
+        {
+            RetrunMessage = 'Only Draft Purchase Order can be ordered';
+        }
+        return RetrunMessage;
+    }
+
+    @AuraEnabled
+    public static string CancelPurchaseOrder(Id recordId){
+        Purchase_Order__c purchaseOrder = new Purchase_Order__c();
+        purchaseOrder = [Select Id, Name, Status__c, (Select Id, Purchase_Price__c, Supplier_Product_SKU__c From Purchase_Order_Lines__r) From Purchase_Order__c Where Id =: recordId limit 1];
+        string RetrunMessage = '';
+        if(purchaseOrder.Status__c != 'Received' && purchaseOrder.Status__c != 'Canceled')
+        {
+            List<String> polIdList = new List<String>();
+            List<String> spIdList = new List<String>();
+            for(Purchase_Order_Line__c pol: purchaseOrder.Purchase_Order_Lines__r)
+            {
+                polIdList.add(pol.Id);
+                spIdList.add(pol.Supplier_Product_SKU__c);
+            }
+            List<Inbound_Shipment_Lines__c> islList = new List<Inbound_Shipment_Lines__c>();
+            islList = [Select Id, Inbound_Shipment__c, Inbound_Shipment__r.Status__c From Inbound_Shipment_Lines__c Where Purchase_Order_Line__c in: polIdList];
+            Boolean shipmentsCanceled = true;
+            for(Inbound_Shipment_Lines__c isl :islList)
+            {
+                if(isl.Inbound_Shipment__r.Status__c != 'Canceled')
+                {
+                    shipmentsCanceled = false;
+                }
+            }
+            if(shipmentsCanceled)
+            {
+                purchaseOrder.Status__c = 'Canceled';
+                Update purchaseOrder;
+                List<Supplier_Products__c> spList = new List<Supplier_Products__c>();
+                spList = [Select Id, Last_Ordered_Date__c, Last_Ordered_Cost__c, (Select Id, Purchase_Price__c, Purchase_Order__r.Order_Time__c From Purchase_Order_Lines__r Where Purchase_Order__r.Status__c != 'Canceled' And Purchase_Order__r.Status__c != 'Draft'  Order By CreatedDate Desc Limit 1) From Supplier_Products__c Where Id in: spIdList];
+                for(Supplier_Products__c sp: spList)
+                {
+                    sp.Last_Ordered_Cost__c = null;
+                    sp.Last_Ordered_Date__c = null;
+                    for(Purchase_Order_Line__c pol: sp.Purchase_Order_Lines__r)
+                    {
+                        sp.Last_Ordered_Cost__c = pol.Purchase_Price__c;
+                        sp.Last_Ordered_Date__c = Date.valueof(pol.Purchase_Order__r.Order_Time__c);
+                    }
+                }
+                if(spList.size()>0) Update spList;
+                RetrunMessage = 'Canceled!';
+            }
+            else
+            {
+                RetrunMessage = 'All Related Inbound Shipments\' status should be Canceled.';
+            }
+        } 
+        else
+        {
+            RetrunMessage = 'Received or Canceled Purchase Order cannot be Canceled';
+        }       
+        return RetrunMessage;
+    }
+}

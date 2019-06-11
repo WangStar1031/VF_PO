@@ -1,0 +1,16 @@
+<apex:page standardController="Supplier_Products__c" extensions="CreatePurchaseOrder" recordSetVar="Supplier_Products__c" showHeader="true" sidebar="false" id="thePage" lightningStylesheets="true">
+    <script>
+        var JsonString = '{!JSONString}';
+        var obj = JSON.parse(JsonString);
+        var compDefinition = { 
+            "componentDef" : "c:CreatePurchaseOrder", 
+            "attributes" : {
+                "message" : "Direct From VF",
+                "SPIdList" : obj
+            }
+            };
+        // Base64 encode the compDefinition JS object
+        var encodedCompDef = btoa(JSON.stringify(compDefinition));
+        window.parent.location = "/one/one.app#"+encodedCompDef;
+    </script>
+</apex:page>

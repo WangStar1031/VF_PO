@@ -1,0 +1,38 @@
+/*
+    Test Class:
+*/
+trigger PurchaseOrderTrigger on Purchase_Order__c (before insert, before update, before delete, after insert, after update, after delete)
+{
+	if(Utilityclass.PurchaseOrderTriggerSwitch)
+	{
+		if(trigger.isBefore)
+		{
+			if(trigger.isInsert)
+			{
+				PurchaseOrderController.generateSerialNumber(trigger.new);
+			}
+			else if(trigger.isUpdate)
+			{
+			}
+			else if(trigger.isDelete)
+			{
+
+			}
+		}
+		else if(trigger.isAfter)
+		{
+			if(trigger.isInsert)
+			{
+
+			}
+			else if(trigger.isUpdate)
+			{
+				PurchaseOrderController.updateBillDate(trigger.newMap, trigger.oldMap);
+			}
+			else if(trigger.isDelete)
+			{
+				
+			}
+		}
+	}
+}

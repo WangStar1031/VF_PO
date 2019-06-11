@@ -1,0 +1,292 @@
+<aura:component access="GLOBAL" controller="CreatePurchaseOrder" implements="force:appHostable,lightning:isUrlAddressable,flexipage:availableForAllPageTypes">
+    <aura:handler name="init" value="{!this}" action="{!c.doInit}" />
+    <aura:attribute name="supplierID" type="list"/>
+    <aura:attribute name="SPIdList" type="list"/>
+    <aura:attribute name ="message" type="String" default="message"/>
+    <aura:attribute name ="purchaseOrder" type="Purchase_Order__c" default="{}"/>
+    <aura:attribute name ="purchaseOrderLines" type="list"/>
+    <aura:attribute name ="chargesList" type="list"/>
+    <aura:attribute name ="SupplierProductOptions" type="list"/>
+    <aura:attribute name ="BusinessEntityOptions" type="String[]" default="[]"/>
+    <aura:attribute name ="SupplierAddressOptions" type="String[]" default="[]"/>
+    <aura:attribute name ="selectedBusinessEntity" type="String"/>
+    <aura:attribute name ="selectedSupplierAdress" type="String"/>
+    <aura:attribute name ="selectedOriginPort" type="String"/>
+    <aura:attribute name ="SupplierName" type="String"/>
+    <aura:attribute name ="Tax" type="decimal"/>
+    <aura:attribute name ="POLTotal" type="decimal"/>
+    <aura:attribute name ="CTTotal" type="decimal"/>
+    <aura:attribute name ="GrandTotal" type="decimal"/>
+    <aura:attribute name ="noError" type="Boolean" default="true"/>
+
+    <aura:renderIf isTrue="{!!v.noError}">
+        <lightning:button variant="Neutral" label="Go Back" title="Go Back" onclick="{! c.handleCancel }" />
+    </aura:renderIf>
+    <div style="text-align:center">
+        <aura:renderIf isTrue="{!v.noError}">
+    		<lightning:button variant="Neutral" label="Cancel" title="Cancel" onclick="{! c.handleCancel }" />
+            <lightning:button variant="brand" label="Create PO" title="Create PO" onclick="{!c.handleCreatePO}"/>
+        </aura:renderIf>
+        <!--<lightning:button variant="brand" label="Log Charges" title="Log Charges" onclick="{!c.alertCharges}"/>-->
+	</div>
+	<br/>
+    <aura:renderIf isTrue="{!v.noError}">
+	<lightning:layout horizontalAlign="center" title="">
+        <lightning:layoutItem size="9">
+                <lightning:card iconName="custom:custom19" title="Purchase Order Lines" class="POLines">
+                    <div class="slds-p-left_large slds-p-right_medium">
+                        <table class="slds-table slds-table--bordered slds-table--cell-buffer">
+                        	<thead>
+                                <tr class="slds-text-title--caps">
+                                	<th/>
+                                    <th aria-label="Name" aria-sort="none" class="slds-has-button-menu slds-is-resizable slds-is-sortable" scope="col">
+                                        <a class="slds-th__action slds-text-link_reset" href="javascript:void(0);" role="button" tabindex="-1">
+                                            <span class="slds-assistive-text">Sort by: </span>
+                                            <div class="slds-grid slds-grid_vertical-align-center slds-has-flexi-truncate">
+                                                <span class="slds-truncate" title="PURCHASE ORDER">ITEM SKU</span>
+                                            </div>
+                                        </a>
+                                    </th>
+                                    <th aria-label="TITLE" aria-sort="none" class="slds-has-button-menu slds-is-resizable slds-is-sortable" scope="col">
+                                        <div class="slds-grid slds-grid_vertical-align-center slds-has-flexi-truncate">
+                                            <span class="slds-truncate" title="Account Name">TITLE</span>
+                                        </div>
+                                    </th>
+                                    <th aria-label="PRICE" aria-sort="none" class="slds-has-button-menu slds-is-resizable slds-is-sortable" scope="col">
+                                        <div class="slds-grid slds-grid_vertical-align-center slds-has-flexi-truncate">
+                                            <span class="slds-truncate" title="Close Date">PRICE</span>
+                                        </div>
+                                    </th>
+                                    <th aria-label="QTY" aria-sort="none" class="slds-has-button-menu slds-is-resizable slds-is-sortable" scope="col">
+                                        <div class="slds-grid slds-grid_vertical-align-center slds-has-flexi-truncate">
+                                            <span class="slds-truncate" title="Stage">QTY</span>
+                                        </div>
+                                    </th>
+                                    <th aria-label="TOTAL" aria-sort="none" class="slds-has-button-menu slds-is-resizable slds-is-sortable" scope="col">
+                                        <div class="slds-grid slds-grid_vertical-align-center slds-has-flexi-truncate">
+                                            <span class="slds-truncate" title="Amount">TOTAL</span>
+                                        </div>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <aura:iteration items="{!v.purchaseOrderLines}" var="item">
+                                    <tr class="slds-hint-parent">
+                                        <td data-label="Purchase Order Lines">
+                                            <div id="{!item.sequenceNum}" class="slds-truncate" title="Delete">
+                                                <lightning:buttonIcon iconName="utility:delete"  alternativeText="delete" onclick="{!c.onClickDelete}"/>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div class="slds-form-element">
+                                              <div class="slds-form-element__control">
+                                                <div class="slds-select_container">
+                                                  <select class="slds-select" onchange="{! c.onSelectSupplierProduct }" id="{!item.sequenceNum + '-SKU'}">
+                                                    <option text="" value="" selected="" disabled="{!item.selectedItem != ''}"/>
+                                                    <aura:iteration items="{!v.SupplierProductOptions}" var="option">
+                                                        <option text="{!option.productName}" value="{!option.productName}" selected="{!option.productName == item.selectedItem}"/>
+                                                    </aura:iteration>
+                                                  </select>
+                                                </div>
+                                              </div>
+                                            </div>
+								        </td>
+                                        <td>
+                                            <div class="slds-form-element">
+                                              <div class="slds-form-element__control">
+                                                <textarea rows = "1" cols = "50" name = "description" class="slds-input" id="{!item.sequenceNum + '-TITLE'}">
+                                                    {!item.pol.Item_Title__c}
+                                                </textarea>
+                                              </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div class="slds-form-element">
+                                              <div class="slds-form-element__control">
+                                                <input type="text" id="{!item.sequenceNum + '-Price'}" placeholder="" value="{!item.pol.Purchase_Price__c}" class="slds-input" onchange="{!c.onChangePriceQTY}" />
+                                              </div>
+                                            </div>
+										</td>
+										<td>
+                                            <div class="slds-form-element">
+                                              <div class="slds-form-element__control">
+											     <input type="number" class="slds-input" value="{!item.pol.Quantity__c}" id="{!item.sequenceNum + '-QTY'}" onchange="{!c.onChangePriceQTY}"/>
+                                              </div>
+                                            </div>
+										</td>
+										<td>
+                                            <div class="slds-form-element">
+                                              <div class="slds-form-element__control">
+											    <lightning:formattedNumber value="{!item.pol.Quantity__c * item.pol.Purchase_Price__c}" style="currency" currencyCode="USD"/>
+                                              </div>
+                                            </div>
+										</td>
+                                    </tr>
+                                </aura:iteration>
+                            </tbody>
+                        </table>
+						&nbsp;
+                        <div >
+                            <lightning:buttonIcon iconName="utility:add"  alternativeText="add" onclick="{!c.onClickAdd}"/>
+                        </div>
+                    </div>
+                </lightning:card>
+                <lightning:card iconName="custom:custom19" title="Charges &amp; Taxes">
+                    <div class="slds-p-left_large slds-p-right_medium">
+                        <table class="slds-table slds-table--bordered slds-table--cell-buffer">
+                            <thead/>
+                            <tbody>
+                                <aura:iteration items="{!v.chargesList}" var="item">
+                                    <tr class="slds-hint-parent">
+                                        <td data-label="Purchase Order Lines">
+                                            <div id="{!item.sequenceNum}" class="slds-truncate" title="Delete">
+                                                <lightning:buttonIcon iconName="utility:delete"  alternativeText="delete" onclick="{!c.onClickDeleteCharge}"/>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div class="slds-form-element">
+                                              <div class="slds-form-element__control">
+                                                <div class="slds-select_container">
+                                                  <select class="slds-select" onchange="{! c.onSelectCharge }" id="{!item.sequenceNum + '-ChargeType'}">
+                                                    <option text="Please Select" value="Please Select" disabled="{!item.selectedCharge != 'Please Select'}"/>
+                                                    <option text="Shipping" value="Shipping" selected="{!item.selectedCharge == 'Shipping'}"/>
+                                                    <option text="Handling" value="Handling" selected="{!item.selectedCharge == 'Handling'}"/>
+                                                    <option text="Service" value="Service" selected="{!item.selectedCharge == 'Service'}"/>
+                                                    <option text="Other" value="Other" selected="{!item.selectedCharge == 'Other'}"/>
+                                                  </select>
+                                                </div>
+                                              </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div class="slds-form-element">
+                                              <div class="slds-form-element__control">
+                                                 <input type="number" class="slds-input" value="{!item.amount}" id="{!item.sequenceNum + '-ChargeAmount'}" onchange="{!c.onChangeChargeAmount}"/>
+                                              </div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </aura:iteration>
+                                &nbsp;
+                                <div >
+                                    <lightning:buttonIcon iconName="utility:add"  alternativeText="add" onclick="{!c.onClickAddCharge}"/>
+                                </div>
+                            </tbody>
+                        </table>
+                        <table class="slds-table slds-table--bordered slds-table--cell-buffer">
+                            <tbody>
+                                <tr class="slds-hint-parent">
+                                    <td>
+                                        <div class="slds-form-element" style="text-align:right">
+                                        <label class="slds-form-element__label" style="text-align:right">Tax</label>
+                                          <div class="slds-form-element__control" style="text-align:right">
+                                             <input type="number" class="slds-input" value="{!v.Tax}" onchange="{!c.onChangeTax}" style="text-align:right;width:20%" id="theTax"/>
+                                          </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <table class="slds-table slds-table--bordered slds-table--cell-buffer">
+                            <tbody>
+                                <tr class="slds-hint-parent">
+                                    <td><div class="slds-text-title_caps" style="text-align:right">PO Line Subtotal $</div></td>
+                                    <td>
+                                        <div class="slds-form-element" style="text-align:right">
+                                          <div class="slds-form-element__control" style="text-align:right">
+                                             <div class="slds-text-title_caps">{!v.POLTotal}</div>
+                                          </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr class="slds-hint-parent">
+                                    <td><div class="slds-text-title_caps" style="text-align:right">Charges &amp; Taxes Subtotal $</div></td>
+                                    <td>
+                                        <div class="slds-form-element" style="text-align:right">
+                                          <div class="slds-form-element__control" style="text-align:right">
+                                             <div class="slds-text-title_caps">{!v.CTTotal}</div>
+                                          </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr class="slds-hint-parent">
+                                    <td><div class="slds-text-title_caps" style="text-align:right">Grand Total $</div></td>
+                                    <td>
+                                        <div class="slds-form-element" style="text-align:right">
+                                          <div class="slds-form-element__control" style="text-align:right">
+                                             <div class="slds-text-title_caps">{!v.GrandTotal}</div>
+                                          </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        
+                    </div>
+                </lightning:card>
+		</lightning:layoutItem>
+		&nbsp;&nbsp;&nbsp;
+        <lightning:layoutItem size="3">
+                <lightning:card iconName="custom:custom19" title="Business Entity">
+					<ui:inputSelect class="single" aura:id="InputSelectBusinessEntity" change="{!c.onSelectBusinessEntity}" value="{!v.selectedBusinessEntity}" label="Entity Name">
+						<aura:iteration items="{!v.BusinessEntityOptions }" var="option">
+					        <ui:inputSelectOption text="{!option}" label="{!option}" value="{!option == v.selectedBusinessEntity}"/>
+					    </aura:iteration>
+				    </ui:inputSelect>                
+				</lightning:card>
+                <lightning:card iconName="custom:custom19" title="Supplier">
+                	<p>Supplier</p>
+					<div class="slds-truncate" title="{!v.SupplierName}">
+                        <a href="{!'/'+v.purchaseOrder.Supplier__c}">{!v.SupplierName}</a>
+                    </div>
+					<ui:inputSelect class="single" aura:id="InputSelectSupplierAddress" change="{!c.onSelectSupplierAddress}" value="{!v.selectedSupplierAdress}" label="Supplier Address">
+						<aura:iteration items="{!v.SupplierAddressOptions }" var="option">
+					        <ui:inputSelectOption text="{!option}" label="{!option}" value="{!option == v.selectedSupplierAdress}"/>
+					    </aura:iteration>
+				    </ui:inputSelect>  
+                </lightning:card>
+                <lightning:card iconName="custom:custom19" title="Logistics">
+					<ui:inputSelect class="single" aura:id="InputSelectOriginPort" value="{!v.selectedOriginPort}" label="Origin Port" change="{!c.onSelectOriginPort}">
+					        <ui:inputSelectOption text="Kaohsiung" label="Kaohsiung" value="Kaohsiung"/>
+					        <ui:inputSelectOption text="Ningbo" label="Ningbo" value="Ningbo"/>
+					        <ui:inputSelectOption text="Yantian" label="Yantian" value="Yantian"/>
+				    </ui:inputSelect>  
+					<ui:inputSelect class="single" aura:id="InputSelectShipBy" value="{!v.purchaseOrder.Ship_By__c}" label="Ship By">
+					        <ui:inputSelectOption text="Air" label="Air" value="Air"/>
+					        <ui:inputSelectOption text="Ocean" label="Ocean" value="Ocean"/>
+					        <ui:inputSelectOption text="Both Air &amp; Ocean" label="Both Air &amp; Ocean" value="Both Air &amp; Ocean"/>
+				    </ui:inputSelect>  
+				</lightning:card>
+                <lightning:card iconName="custom:custom19" title="Terms">
+					<ui:inputSelect class="single" aura:id="InputSelectFOBPoint" value="{!v.purchaseOrder.FOB_Point__c}" label="FOB Point">
+					        <ui:inputSelectOption text="Origin" label="Origin" value="Origin"/>
+					        <ui:inputSelectOption text="Ex Work" label="Ex Work" value="Ex Work"/>
+					        <ui:inputSelectOption text="Destination" label="Destination" value="Destination"/>
+					        <ui:inputSelectOption text="Port of entry" label="Port of entry" value="Port of entry"/>
+				    </ui:inputSelect>  
+					<ui:inputSelect class="single" aura:id="InputSelectShippingTerms" value="{!v.purchaseOrder.Shipping_Terms__c}" label="Shipping Terms">
+					        <ui:inputSelectOption text="Prepaid &amp; Billed" label="Prepaid &amp; Billed" value="Prepaid &amp; Billed"/>
+					        <ui:inputSelectOption text="Prepaid" label="Prepaid" value="Prepaid"/>
+					        <ui:inputSelectOption text="Freight Collect" label="Freight Collect" value="Freight Collect"/>
+				    </ui:inputSelect>  
+					<ui:inputSelect class="single" aura:id="InputSelectPaymentTerms" value="{!v.purchaseOrder.Payment_Terms__c}" label="Payment Terms">
+					        <ui:inputSelectOption text="CIA" label="CIA" value="CIA"/>
+					        <ui:inputSelectOption text="COD" label="COD" value="COD"/>
+					        <ui:inputSelectOption text="CCD" label="CCD" value="CCD"/>
+					        <ui:inputSelectOption text="Net 15" label="Net 15" value="Net 15"/>
+					        <ui:inputSelectOption text="Net 30" label="Net 30" value="Net 30"/>
+					        <ui:inputSelectOption text="Net 45" label="Net 45" value="Net 45"/>
+					        <ui:inputSelectOption text="Net 60" label="Net 60" value="Net 60"/>
+					        <ui:inputSelectOption text="Net 90" label="Net 90" value="Net 90"/>
+					        <ui:inputSelectOption text="Net 120" label="Net 120" value="Net 120"/>
+					        <ui:inputSelectOption text="Net 150" label="Net 150" value="Net 150"/>
+				    </ui:inputSelect>  
+                </lightning:card>
+                <lightning:card iconName="custom:custom19" title="Notes">
+                	<lightning:textarea aura:id="NoteToSupplier" name="NoteToSupplier" value="" label="Note to Supplier" maxlength="255" />
+                	<lightning:textarea aura:id="Memo" name="Memo" value="" label="Memo" maxlength="255" />
+                </lightning:card>
+		</lightning:layoutItem>
+	</lightning:layout>
+    </aura:renderIf>
+</aura:component>
